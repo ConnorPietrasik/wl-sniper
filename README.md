@@ -5,6 +5,7 @@ Hold-to-sniper DPI switch for **WLmouse** mice (8K 2.4 GHz dongle,
 "sniper" stage; release → your normal stage. No keyboard involved, no
 virtual keys, zero latency impact on the mouse itself.
 
+- Install: `cargo install wl-sniper` (crates.io)
 - AGPL-3.0-or-later
 - HID protocol code derived from [wl-mouse] (AGPL-3.0-or-later),
   https://heliopolis.live/creations/wl-mouse
@@ -78,11 +79,15 @@ sudo udevadm control --reload-rules
 # replug the dongle (or: sudo udevadm trigger --subsystem-match=hidraw)
 ls -l /dev/hidraw*                        # 36a7 nodes must be root:input 0660
 
-# 2. The binary (x86_64 glibc build in bin/), or build from source:
-#    cargo build --release  (deps: hidapi, evdev, clap, anyhow) — produces
-#    both wl-sniper and the companion wl-probe (see "Diagnosing")
-install -Dm755 bin/wl-sniper-x86_64-linux ~/.local/bin/wl-sniper
-install -Dm755 bin/wl-probe-x86_64-linux ~/.local/bin/wl-probe
+# 2. The binaries — installs both wl-sniper and wl-probe into ~/.cargo/bin:
+cargo install wl-sniper
+```
+
+No Rust toolchain? The repo ships prebuilt x86_64/glibc binaries in `bin/` —
+copy them anywhere on your PATH (they keep the `-x86_64-linux` suffix):
+
+```sh
+install -Dm755 bin/wl-sniper-x86_64-linux bin/wl-probe-x86_64-linux ~/.local/bin/
 ```
 
 ## Diagnosing: wl-probe
@@ -154,24 +159,50 @@ Notes:
   timestamped and non-fatal (the next edge retries).
 - Ctrl-C / any death releases the grab automatically.
 
-## Autostart (systemd user unit)
+## Run as a daemon (systemd user unit)
 
-`~/.config/systemd/user/wl-sniper.service`:
+A per-user systemd service: starts at login, restarts on failure, and —
+thanks to the 5 s retry — picks the dongle up automatically if it is
+plugged in after boot.
 
-```ini
+```sh
+cat > ~/.config/systemd/user/wl-sniper.service <<'EOF'
 [Unit]
-Description=wl-sniper DPI button daemon
+Description=wl-sniper hold-to-sniper DPI switch daemon
 
 [Service]
-ExecStart=%h/.local/bin/wl-sniper --button 70 --sniper-stage 1 --normal-stage 2
+# -q: log errors only (press/release edges stay out of the journal)
+ExecStart=%h/.cargo/bin/wl-sniper --button 70 --sniper-stage 1 --normal-stage 2 -q
 Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=default.target
-```
+EOF
 
-```sh
 systemctl --user daemon-reload
 systemctl --user enable --now wl-sniper
-journalctl --user -u wl-sniper -f
 ```
+
+(If you used the prebuilt binaries from `bin/` instead of `cargo install`,
+point `ExecStart` at them, e.g. `%h/.local/bin/wl-sniper-x86_64-linux`.)
+
+Day-2 operations:
+
+```sh
+journalctl --user -u wl-sniper -n 20 --no-pager  # startup line + recent errors
+journalctl --user -u wl-sniper -f                # follow
+systemctl --user restart wl-sniper               # after editing the unit
+systemctl --user stop wl-sniper                  # releases the grab immediately
+```
+
+Notes:
+
+- Runs as your user — no root involved; the `input` group membership is
+  what grants access to `/dev/input/*` and `/dev/hidraw*`.
+- Active only while you are logged in. A logout stops the service and
+  releases the grab — the right failure mode for a mouse daemon. (`stop`
+  does the same on demand.)
+- The 5 s retry means a missing dongle at boot is not a problem: the
+  service keeps restarting (one journal line per attempt) until the
+  dongle appears, then stays up.
