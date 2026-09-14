@@ -3,7 +3,14 @@ name = "wl-sniper"
 version = "1.0.0"
 edition = "2024"
 description = "Hold-to-sniper DPI switch daemon for WLmouse (HID protocol code derived from wl-mouse, AGPL-3.0-or-later)."
-license = "AGPL-3.0-or-later"
+# license-file (not license=): our LICENSE carries a copyright header above the
+# verbatim AGPL text, so it does not byte-match the canonical SPDX document and
+# the crates.io identifier check would reject it.
+license-file = "LICENSE"
+# Prebuilt host binaries stay out of the .crate — consumers build from source.
+exclude = ["bin/*"]
+repository = "https://github.com/ConnorPietrasik/wl-sniper"
+homepage = "https://github.com/ConnorPietrasik/wl-sniper"
 
 [dependencies]
 hidapi = "2"
