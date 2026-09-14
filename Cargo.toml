@@ -1,6 +1,6 @@
 [package]
 name = "wl-sniper"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 description = "Hold-to-sniper DPI switch daemon for WLmouse (HID protocol code derived from wl-mouse, AGPL-3.0-or-later)."
 # license-file (not license=): our LICENSE carries a copyright header above the
